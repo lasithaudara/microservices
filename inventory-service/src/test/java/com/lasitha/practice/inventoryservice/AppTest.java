@@ -1,4 +1,4 @@
-package com.lasitha.practice.productservice;
+package com.lasitha.practice.inventoryservice;
 
 import junit.framework.Test;
 import junit.framework.TestCase;

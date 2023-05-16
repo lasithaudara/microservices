@@ -6,6 +6,7 @@ import lombok.*;
 import java.util.List;
 @Data
 @Entity
+@Builder
 @Table(name = "t_orders")
 @NoArgsConstructor
 @AllArgsConstructor

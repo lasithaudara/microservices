@@ -1,17 +1,17 @@
 package com.lasitha.practice.orderservice.service;
 
-import com.lasitha.practice.orderservice.model.Order;
-import com.lasitha.practice.orderservice.model.OrderItems;
-import com.lasitha.practice.orderservice.model.OrderItemDto;
-import com.lasitha.practice.orderservice.model.OrderRequest;
+import com.lasitha.practice.orderservice.model.*;
 import com.lasitha.practice.orderservice.repository.OrderRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
-public record OrderService(OrderRepository orderRepository) {
+public record OrderService(OrderRepository orderRepository, WebClient.Builder webClientBuilder) {
 
     /**
      * @param orderRequest - pojo from request
@@ -22,11 +22,29 @@ public record OrderService(OrderRepository orderRepository) {
                 .map(OrderService::mapToEntity)
                 .toList();
 
-        Order order = new Order();
-        order.setOrderNumber(UUID.randomUUID().toString());
-        order.setOrderItemList(orderItemList);
+        List<String> skuCodeList = orderItemList.parallelStream()
+                .map(OrderItems::getSkuCode)
+                .toList();
 
-        orderRepository.save(order);
+        InventoryResponse[] responseList = webClientBuilder.build().get()
+                .uri("http://inventory-service/api/v1/inventory",
+                        uriBuilder -> uriBuilder.queryParam("skuCode", skuCodeList).build())
+                .retrieve()
+                .bodyToMono(InventoryResponse[].class)
+                .block();
+
+        boolean allItemsIsInStock = Arrays.stream(Objects.requireNonNull(responseList))
+                .allMatch(InventoryResponse::isInStock);
+
+        if (allItemsIsInStock) {
+            Order order = Order.builder()
+                    .orderNumber(UUID.randomUUID().toString())
+                    .orderItemList(orderItemList)
+                    .build();
+
+            orderRepository.save(order);
+        }else
+            throw new IllegalStateException("order items are not available in stock");
     }
 
 
@@ -36,12 +54,10 @@ public record OrderService(OrderRepository orderRepository) {
      * @return OrderItem from OrderItemDto
      */
     private static OrderItems mapToEntity(OrderItemDto orderItemDto){
-
-                OrderItems orderItem = new OrderItems();
+        OrderItems orderItem = new OrderItems();
         orderItem.setPrice(orderItemDto.price());
         orderItem.setSkuCode(orderItemDto.skuCode());
         orderItem.setQuantity(orderItemDto.quantity());
-
         return orderItem;
     }
 }
