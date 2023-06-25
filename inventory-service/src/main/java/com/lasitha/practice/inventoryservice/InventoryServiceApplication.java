@@ -9,13 +9,13 @@ import org.springframework.context.annotation.Bean;
 
 import java.util.ArrayList;
 import java.util.List;
-
 @SpringBootApplication
 public class InventoryServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(InventoryServiceApplication.class, args);
     }
-    /*@Bean
+
+    @Bean
     public CommandLineRunner initData(InventoryRepository inventoryRepository){
        return args -> {
            List<Inventory> inList = new ArrayList<>();
@@ -39,5 +39,5 @@ public class InventoryServiceApplication {
                    .filter(entity -> inventoryRepository.findBySkuCode(entity.getSkuCode()).isEmpty())
                    .forEach(inventoryRepository::save);
        };
-    }*/
+    }
 }

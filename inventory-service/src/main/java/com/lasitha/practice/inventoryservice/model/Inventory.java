@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 @Data
 @Entity
 @Builder
-@Table(name = "t_inventory")
 @NoArgsConstructor
 @AllArgsConstructor
 public class Inventory {
