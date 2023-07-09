@@ -7,12 +7,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -37,34 +35,30 @@ public class OrderService {
                 .map(OrderItems::getSkuCode)
                 .toList();
 
-        Mono<InventoryResponse[]> responseMono = webClientBuilder
-                .build().get()
-                .uri("http://inventory-service/api/v1/inventory", uriBuilder ->
-                        uriBuilder.queryParam("skuCode", skuCodes).build())
-                .retrieve()
-                .bodyToMono(InventoryResponse[].class);
+        try {
+            InventoryResponse[] inventoryResponseArray = webClientBuilder
+                    .build().get()
+                    .uri("http://inventory-service/api/v1/inventory", uriBuilder ->
+                            uriBuilder.queryParam("skuCode", skuCodes).build())
+                    .retrieve()
+                    .bodyToMono(InventoryResponse[].class).block();
 
-        AtomicBoolean allProductsInStock = new AtomicBoolean(false); // Initialized with a default value
-
-        responseMono.subscribe(
-                inventoryResponseArray -> {
-                    boolean productsInStock = Arrays.stream(inventoryResponseArray)
-                            .allMatch(InventoryResponse::isInStock);
-                    allProductsInStock.set(productsInStock);
-                },
-                Throwable::printStackTrace
-        );
-        boolean result = allProductsInStock.get();
-        if (result) {
-            Order order = Order.builder()
-                    .orderNumber(UUID.randomUUID().toString())
-                    .orderItemList(orderItemList)
-                    .build();
-            orderRepository.save(order);
-            return "order placed successfully";
-        } else {
-            throw new IllegalArgumentException("Product is not in stock, please try again later");
+            boolean productsInStock = Arrays.stream(inventoryResponseArray)
+                    .allMatch(InventoryResponse::isInStock);
+            if (productsInStock) {
+                Order order = Order.builder()
+                        .orderNumber(UUID.randomUUID().toString())
+                        .orderItemList(orderItemList)
+                        .build();
+                orderRepository.save(order);
+                return "Order is successful";
+            } else {
+                throw new IllegalArgumentException("Product is not in stock, please try again later");
+            }
+        }catch (Exception ignored){
+            throw new RuntimeException(ignored.getMessage());
         }
+
     }
 
     /**
