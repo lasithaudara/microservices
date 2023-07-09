@@ -2,6 +2,8 @@ package com.lasitha.practice.orderservice.service;
 
 import com.lasitha.practice.orderservice.model.*;
 import com.lasitha.practice.orderservice.repository.OrderRepository;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
+    private final Tracer tracer;
 
     /**
      * @param orderRequest - pojo from request
@@ -35,7 +38,9 @@ public class OrderService {
                 .map(OrderItems::getSkuCode)
                 .toList();
 
-        try {
+        Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
+
+        try( Tracer.SpanInScope isSpanInScope = tracer.withSpan(inventoryServiceLookup.start())){
             InventoryResponse[] inventoryResponseArray = webClientBuilder
                     .build().get()
                     .uri("http://inventory-service/api/v1/inventory", uriBuilder ->
@@ -43,6 +48,7 @@ public class OrderService {
                     .retrieve()
                     .bodyToMono(InventoryResponse[].class).block();
 
+            assert inventoryResponseArray != null;
             boolean productsInStock = Arrays.stream(inventoryResponseArray)
                     .allMatch(InventoryResponse::isInStock);
             if (productsInStock) {
@@ -55,9 +61,13 @@ public class OrderService {
             } else {
                 throw new IllegalArgumentException("Product is not in stock, please try again later");
             }
-        }catch (Exception ignored){
-            throw new RuntimeException(ignored.getMessage());
+        }finally {
+            inventoryServiceLookup.end();
         }
+
+
+
+
 
     }
 
