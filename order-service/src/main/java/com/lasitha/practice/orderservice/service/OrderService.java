@@ -1,11 +1,13 @@
 package com.lasitha.practice.orderservice.service;
 
+import com.lasitha.practice.orderservice.event.OrderPlacedEvent;
 import com.lasitha.practice.orderservice.model.*;
 import com.lasitha.practice.orderservice.repository.OrderRepository;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -23,6 +25,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
     private final Tracer tracer;
+    private final KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
 
     /**
      * @param orderRequest - pojo from request
@@ -41,6 +44,9 @@ public class OrderService {
         Span inventoryServiceLookup = tracer.nextSpan().name("InventoryServiceLookup");
 
         try( Tracer.SpanInScope isSpanInScope = tracer.withSpan(inventoryServiceLookup.start())){
+
+            inventoryServiceLookup.tag("call", "inventory-service");
+
             InventoryResponse[] inventoryResponseArray = webClientBuilder
                     .build().get()
                     .uri("http://inventory-service/api/v1/inventory", uriBuilder ->
@@ -57,6 +63,9 @@ public class OrderService {
                         .orderItemList(orderItemList)
                         .build();
                 orderRepository.save(order);
+
+                kafkaTemplate.send("notificationTopic", OrderPlacedEvent.builder()
+                        .orderNumber(order.getOrderNumber()).build());
                 return "Order is successful";
             } else {
                 throw new IllegalArgumentException("Product is not in stock, please try again later");
