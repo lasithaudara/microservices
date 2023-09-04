@@ -13,6 +13,9 @@ import java.util.List;
 @Service
 public record ProductService(ProductRepository productRepository) {
     public void createProduct(ProductRequest productReq){
+        if(productRepository.findByName(productReq.name()).isPresent())
+            throw new RuntimeException("Product - "+productReq.name()+" is already present");
+
         Product product = Product.builder()
                 .name(productReq.name())
                 .description(productReq.description())
@@ -23,10 +26,10 @@ public record ProductService(ProductRepository productRepository) {
     }
 
     public List<ProductResponse> getAllProducts(){
-        return productRepository.findAll().stream().map(ProductService::mapToDto).toList();
+        return productRepository.findAll().stream().map(this::mapToDto).toList();
     }
 
-    private static ProductResponse mapToDto(Product product){
+    private ProductResponse mapToDto(Product product){
        return ProductResponse.builder().id(product.getId())
                .name(product.getName())
                 .description(product.getDescription())
